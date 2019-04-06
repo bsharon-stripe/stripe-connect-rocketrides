@@ -449,38 +449,34 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
         paymentIntentParams.sourceId = paymentResult.source.stripeID
         
         paymentIntentParams.returnURL = "your-app://stripe-redirect"
-        paymentIntentParams.additionalAPIParameters = [
-            "customer": customerId!
-        ];
-        // paymentIntentParams.savePaymentMethod = true
-        
+
         let client = STPAPIClient.shared()
         client.confirmPaymentIntent(with: paymentIntentParams, completion: { (paymentIntent, error) in
             if let error = error {
                 // handle error
                 NSLog("Confirmation Error")
+                completion(error)
             } else if let paymentIntent = paymentIntent {
                 // see below to handle the confirmed PaymentIntent
                 NSLog("Confirmation Success")
+                MainAPIClient.shared.requestRide(source: source, amount: self.price, currency: "usd") { [weak self] (ride, error) in
+                    guard let strongSelf = self else {
+                        // View controller was deallocated
+                        return
+                    }
+                    
+                    guard error == nil else {
+                        // Error while requesting ride
+                        completion(error)
+                        return
+                    }
+                    
+                    // Save ride info to display after payment finished
+                    strongSelf.rideRequestState = .active(ride!)
+                    completion(nil)
+                }
             }
         })
-
-        MainAPIClient.shared.requestRide(source: source, amount: price, currency: "usd") { [weak self] (ride, error) in
-            guard let strongSelf = self else {
-                // View controller was deallocated
-                return
-            }
-
-            guard error == nil else {
-                // Error while requesting ride
-                completion(error)
-                return
-            }
-
-            // Save ride info to display after payment finished
-            strongSelf.rideRequestState = .active(ride!)
-            completion(nil)
-        }
     }
 
     func paymentContext(_ paymentContext: STPPaymentContext, didFinishWith status: STPPaymentStatus, error: Error?) {
