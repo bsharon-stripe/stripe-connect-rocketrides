@@ -159,7 +159,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
     }
 
     // MARK: Helpers
-    
+
     private func requestPaymentIntent() {
         // Go get a PI from the server
         MainAPIClient.shared.createPaymentIntent(amount: price, currency: "USD"){ [weak self] (secret, customer, error) in
@@ -167,7 +167,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
                 // View controller was deallocated
                 return
             }
-            
+
             guard error == nil else {
                 strongSelf.rideRequestState = .none
                 return
@@ -178,7 +178,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
             strongSelf.rideRequestState = .requesting
             strongSelf.paymentIntentClientSecret = secret
             strongSelf.customerId = customer
-            
+
             // Perform payment request
             strongSelf.paymentContext.requestPayment()
         }
@@ -404,6 +404,25 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
         rideDetailsView.isHidden = true
     }
 
+    private func confirmRide(source: String, completion: @escaping STPErrorBlock) {
+        MainAPIClient.shared.requestRide(source: source, amount: self.price, currency: "usd") { [weak self] (ride, error) in
+            guard let strongSelf = self else {
+                // View controller was deallocated
+                return
+            }
+
+            guard error == nil else {
+                // Error while requesting ride
+                completion(error)
+                return
+            }
+
+            // Save ride info to display after payment finished
+            strongSelf.rideRequestState = .active(ride!)
+            completion(nil)
+        }
+    }
+
     // MARK: STPPaymentContextDelegate
 
     func paymentContext(_ paymentContext: STPPaymentContext, didFailToLoadWithError error: Error) {
@@ -447,7 +466,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
 //        let paymentMethodParams = STPPaymentMethodParams(card: paymentResult.source, billingDetails: nil, metadata: nil)
         let paymentIntentParams = STPPaymentIntentParams(clientSecret: paymentIntentClientSecret!)
         paymentIntentParams.sourceId = paymentResult.source.stripeID
-        
+
         paymentIntentParams.returnURL = "your-app://stripe-redirect"
 
         let client = STPAPIClient.shared()
@@ -457,23 +476,23 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
                 NSLog("Confirmation Error")
                 completion(error)
             } else if let paymentIntent = paymentIntent {
-                // see below to handle the confirmed PaymentIntent
-                NSLog("Confirmation Success")
-                MainAPIClient.shared.requestRide(source: source, amount: self.price, currency: "usd") { [weak self] (ride, error) in
-                    guard let strongSelf = self else {
-                        // View controller was deallocated
-                        return
+                if paymentIntent.status == .requiresSourceAction {
+                    guard let redirectContext = (STPRedirectContext(paymentIntent: paymentIntent) { [weak self] (secret, error) in
+                        guard let strongSelf = self else {
+                            // View controller was deallocated
+                            return
+                        }
+
+                        strongSelf.confirmRide(source: source, completion: completion);
+                    }) else {
+                        // This PaymentIntent action is not yet supported by the SDK.
+                        completion(nil)
+                        return;
                     }
-                    
-                    guard error == nil else {
-                        // Error while requesting ride
-                        completion(error)
-                        return
-                    }
-                    
-                    // Save ride info to display after payment finished
-                    strongSelf.rideRequestState = .active(ride!)
-                    completion(nil)
+                    redirectContext.startRedirectFlow(from: self)
+                } else {
+                    NSLog("Confirmation Success")
+                    self.confirmRide(source: source, completion: completion);
                 }
             }
         })
@@ -590,5 +609,5 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
 
 
     }
-    
+
 }
