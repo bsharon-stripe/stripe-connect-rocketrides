@@ -22,9 +22,44 @@ class MainAPIClient: NSObject, STPEphemeralKeyProvider {
         case invalidResponse
     }
 
+    func createPaymentIntent(amount: Int, currency: String, completion: @escaping (String?, String?, RequestRideError?) -> Void) {
+        let endpoint = "/api/rides/create_payment_intent"
+        
+        guard
+            !baseURLString.isEmpty,
+            let baseURL = URL(string: baseURLString),
+            let url = URL(string: endpoint, relativeTo: baseURL) else {
+                completion(nil, nil, .missingBaseURL)
+                return
+        }
+        
+        // Important: For this demo, we're trusting the `amount` and `currency` coming from the client request.
+        // A real application should absolutely have the `amount` and `currency` securely computed on the backend
+        // to make sure the user can't change the payment amount from their web browser or client-side environment.
+        let parameters: [String: Any] = [
+            "amount": amount,
+            "currency": currency,
+            ]
+        
+        Alamofire.request(url, method: .post, parameters: parameters).responseJSON { (response) in
+            guard let json = response.result.value as? [String: Any] else {
+                completion(nil, nil, .invalidResponse)
+                return
+            }
+            
+            guard let client_secret = json["payment_intent_client_secret"] as? String,
+                let customer = json["customer"] as? String else {
+                    completion(nil, nil, .invalidResponse)
+                    return
+            }
+
+            completion(client_secret, customer, nil)
+        }
+    }
+
     func requestRide(source: String, amount: Int, currency: String, completion: @escaping (Ride?, RequestRideError?) -> Void) {
         let endpoint = "/api/rides"
-
+        
         guard
             !baseURLString.isEmpty,
             let baseURL = URL(string: baseURLString),
@@ -32,7 +67,7 @@ class MainAPIClient: NSObject, STPEphemeralKeyProvider {
                 completion(nil, .missingBaseURL)
                 return
         }
-
+        
         // Important: For this demo, we're trusting the `amount` and `currency` coming from the client request.
         // A real application should absolutely have the `amount` and `currency` securely computed on the backend
         // to make sure the user can't change the payment amount from their web browser or client-side environment.
@@ -40,21 +75,21 @@ class MainAPIClient: NSObject, STPEphemeralKeyProvider {
             "source": source,
             "amount": amount,
             "currency": currency,
-        ]
-
+            ]
+        
         Alamofire.request(url, method: .post, parameters: parameters).responseJSON { (response) in
             guard let json = response.result.value as? [String: Any] else {
                 completion(nil, .invalidResponse)
                 return
             }
-
+            
             guard let pilotName = json["pilot_name"] as? String,
                 let pilotVehicle = json["pilot_vehicle"] as? String,
                 let pilotLicense = json["pilot_license"] as? String else {
                     completion(nil, .invalidResponse)
                     return
             }
-
+            
             completion(Ride(pilotName: pilotName, pilotVehicle: pilotVehicle, pilotLicense: pilotLicense), nil)
         }
     }

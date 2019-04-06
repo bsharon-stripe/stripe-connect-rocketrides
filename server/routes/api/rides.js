@@ -13,6 +13,30 @@ const Ride = require('../../models/ride');
  * have a user authentication system for passengers.
  */
 
+router.post('/create_payment_intent', async (req, res, next) => {
+  console.log(req.body)
+  const {amount, currency} = req.body;
+
+  try {
+    // Find the latest passenger (see note above)
+    const passenger = await Passenger.getLatest();
+    const paymentIntent = await stripe.paymentIntents.create({
+      customer: passenger.stripeCustomerId,
+      amount: amount,
+      currency: currency,
+      payment_method_types: ['card'],
+    });
+    console.log(paymentIntent);
+    res.send({
+      customer: passenger.stripeCustomerId,
+      payment_intent_client_secret: paymentIntent.client_secret
+    });
+  } catch (err) {
+    res.sendStatus(500);
+    next(`Error creating payment intent: ${err.message}`);
+  }
+});
+
 /**
  * POST /api/rides
  *
@@ -25,6 +49,7 @@ router.post('/', async (req, res, next) => {
    * are securely computed on the backend to make sure the user can't change
    * the payment amount from their web browser or client-side environment.
    */
+  console.log(req.body)
   const {source, amount, currency} = req.body;
 
   try {

@@ -16,6 +16,8 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
 
     private let customerContext: STPCustomerContext
     private let paymentContext: STPPaymentContext
+    private var paymentIntentClientSecret: String?
+    private var customerId: String?
 
     private let locationManager = CLLocationManager()
 
@@ -39,6 +41,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
 
     private enum RideRequestState {
         case none
+        case creatingPaymentIntent
         case requesting
         case active(Ride)
     }
@@ -144,12 +147,9 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
     private func handleRequestRideButtonTapped() {
         switch rideRequestState {
         case .none:
-            // Update to requesting state
-            rideRequestState = .requesting
-
-            // Perform payment request
-            paymentContext.requestPayment()
+            requestPaymentIntent()
         case .requesting:
+        fallthrough case .creatingPaymentIntent:
             // Do nothing
             break
         case .active:
@@ -159,6 +159,30 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
     }
 
     // MARK: Helpers
+    
+    private func requestPaymentIntent() {
+        // Go get a PI from the server
+        MainAPIClient.shared.createPaymentIntent(amount: price, currency: "USD"){ [weak self] (secret, customer, error) in
+            guard let strongSelf = self else {
+                // View controller was deallocated
+                return
+            }
+            
+            guard error == nil else {
+                strongSelf.rideRequestState = .none
+                return
+            }
+
+            // If that succeeds, request payment details
+            // Update to requesting state
+            strongSelf.rideRequestState = .requesting
+            strongSelf.paymentIntentClientSecret = secret
+            strongSelf.customerId = customer
+            
+            // Perform payment request
+            strongSelf.paymentContext.requestPayment()
+        }
+    }
 
     private func presentPaymentMethodsViewController() {
         guard !STPPaymentConfiguration.shared().publishableKey.isEmpty else {
@@ -176,7 +200,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
         }
 
         // Present the Stripe payment methods view controller to enter payment details
-        paymentContext.presentPaymentMethodsViewController()
+        paymentContext.presentPaymentOptionsViewController()
     }
 
     private func reloadMapViewContent() {
@@ -237,7 +261,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
     }
 
     private func reloadPaymentButtonContent() {
-        guard let selectedPaymentMethod = paymentContext.selectedPaymentMethod else {
+        guard let selectedPaymentMethod = paymentContext.selectedPaymentOption else {
             // Show default image, text, and color
             paymentButton.setImage(#imageLiteral(resourceName: "Payment"), for: .normal)
             paymentButton.setTitle("Payment", for: .normal)
@@ -275,7 +299,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
     }
 
     private func reloadRequestRideButton() {
-        guard pickupPlacemark != nil && destinationPlacemark != nil && paymentContext.selectedPaymentMethod != nil else {
+        guard pickupPlacemark != nil && destinationPlacemark != nil && paymentContext.selectedPaymentOption != nil else {
             // Show disabled state
             requestRideButton.backgroundColor = .riderGrayColor
             requestRideButton.setTitle("Request Ride", for: .normal)
@@ -294,6 +318,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
             requestRideButton.setImage(#imageLiteral(resourceName: "Arrow"), for: .normal)
             requestRideButton.isEnabled = true
         case .requesting:
+        fallthrough case .creatingPaymentIntent:
             // Show loading state
             requestRideButton.backgroundColor = .riderGrayColor
             requestRideButton.setTitle("···", for: .normal)
@@ -417,6 +442,28 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
     func paymentContext(_ paymentContext: STPPaymentContext, didCreatePaymentResult paymentResult: STPPaymentResult, completion: @escaping STPErrorBlock) {
         // Create charge using payment result
         let source = paymentResult.source.stripeID
+//        let paymentMethodParams = STPPaymentMethodParams
+//
+//        let paymentMethodParams = STPPaymentMethodParams(card: paymentResult.source, billingDetails: nil, metadata: nil)
+        let paymentIntentParams = STPPaymentIntentParams(clientSecret: paymentIntentClientSecret!)
+        paymentIntentParams.sourceId = paymentResult.source.stripeID
+        
+        paymentIntentParams.returnURL = "your-app://stripe-redirect"
+        paymentIntentParams.additionalAPIParameters = [
+            "customer": customerId!
+        ];
+        // paymentIntentParams.savePaymentMethod = true
+        
+        let client = STPAPIClient.shared()
+        client.confirmPaymentIntent(with: paymentIntentParams, completion: { (paymentIntent, error) in
+            if let error = error {
+                // handle error
+                NSLog("Confirmation Error")
+            } else if let paymentIntent = paymentIntent {
+                // see below to handle the confirmed PaymentIntent
+                NSLog("Confirmation Success")
+            }
+        })
 
         MainAPIClient.shared.requestRide(source: source, amount: price, currency: "usd") { [weak self] (ride, error) in
             guard let strongSelf = self else {

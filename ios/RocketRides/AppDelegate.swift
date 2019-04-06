@@ -26,7 +26,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
      If you'd like to use this app with https://rocketrides.io (see below),
      you can use our test publishable key: "pk_test_hnUZptHh36jRUveejCXqRoVu".
      */
-    private let publishableKey: String = ""
+    private let publishableKey: String = "pk_test_4ecaXEp3ioNREv9EGB5osFxx"
 
     /**
      Fill in your backend URL here to try out the full payment experience
@@ -34,7 +34,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
      Ex: "http://localhost:3000" if you're running the Node server locally,
      or "https://rocketrides.io" to try the app using our hosted version.
      */
-    private let baseURLString: String = ""
+    private let baseURLString: String = "http://localhost:3000"
 
     /**
      Optionally, fill in your Apple Merchant identifier here to try out the
