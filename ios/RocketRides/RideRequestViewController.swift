@@ -405,8 +405,8 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
         rideDetailsView.isHidden = true
     }
 
-    private func confirmRide(source: String, completion: @escaping STPErrorBlock) {
-        MainAPIClient.shared.requestRide(source: source, amount: self.price, currency: "usd") { [weak self] (ride, error) in
+    private func confirmRide(paymentIntent: String, completion: @escaping STPErrorBlock) {
+        MainAPIClient.shared.requestRide(paymentIntent: paymentIntent, amount: self.price, currency: "usd") { [weak self] (ride, error) in
             guard let strongSelf = self else {
                 // View controller was deallocated
                 return
@@ -493,7 +493,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
                             let status = paymentIntent.status
                             if status == .succeeded {
                                 NSLog("Confirmation Success")
-                                strongSelf.confirmRide(source: source, completion: completion);
+                                strongSelf.confirmRide(paymentIntent: paymentIntent.stripeId, completion: completion);
                             }
                         })
                     }) else {
@@ -506,7 +506,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
                     self.redirectContext = redirectContext
                 } else {
                     NSLog("Confirmation Success")
-                    self.confirmRide(source: source, completion: completion);
+                    self.confirmRide(paymentIntent: paymentIntent.stripeId, completion: completion);
                 }
             }
         })

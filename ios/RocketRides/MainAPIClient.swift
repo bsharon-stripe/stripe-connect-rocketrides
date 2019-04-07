@@ -57,7 +57,7 @@ class MainAPIClient: NSObject, STPEphemeralKeyProvider {
         }
     }
 
-    func requestRide(source: String, amount: Int, currency: String, completion: @escaping (Ride?, RequestRideError?) -> Void) {
+    func requestRide(paymentIntent: String, amount: Int, currency: String, completion: @escaping (Ride?, RequestRideError?) -> Void) {
         let endpoint = "/api/rides"
         
         guard
@@ -72,7 +72,7 @@ class MainAPIClient: NSObject, STPEphemeralKeyProvider {
         // A real application should absolutely have the `amount` and `currency` securely computed on the backend
         // to make sure the user can't change the payment amount from their web browser or client-side environment.
         let parameters: [String: Any] = [
-            "source": source,
+            "payment_intent": paymentIntent,
             "amount": amount,
             "currency": currency,
             ]

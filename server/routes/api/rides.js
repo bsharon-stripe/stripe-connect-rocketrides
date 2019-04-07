@@ -21,6 +21,9 @@ router.post('/create_payment_intent', async (req, res, next) => {
     // Find the latest passenger (see note above)
     const passenger = await Passenger.getLatest();
     const paymentIntent = await stripe.paymentIntents.create({
+      description: config.appName,
+      statement_descriptor: config.appName,
+
       customer: passenger.stripeCustomerId,
       amount: amount,
       currency: currency,
@@ -50,7 +53,7 @@ router.post('/', async (req, res, next) => {
    * the payment amount from their web browser or client-side environment.
    */
   console.log(req.body)
-  const {source, amount, currency} = req.body;
+  const {payment_intent: payment_intent_token, amount, currency} = req.body;
 
   try {
     // For the purpose of this demo, we'll assume we are automatically
@@ -68,25 +71,21 @@ router.post('/', async (req, res, next) => {
     // Save the ride
     await ride.save();
 
-    // Create a charge and set its destination to the pilot's account
-    const charge = await stripe.charges.create({
-      source: source,
-      amount: ride.amount,
-      currency: ride.currency,
-      description: config.appName,
-      statement_descriptor: config.appName,
-      // The destination parameter directs the transfer of funds from platform to pilot
-      transfer_data: {
-        // Send the amount for the pilot after collecting a 20% platform fee:
-        // the `amountForPilot` method simply computes `ride.amount * 0.8`
-        amount: ride.amountForPilot(),
-        // The destination of this charge is the pilot's Stripe account
-        destination: pilot.stripeAccountId,
-      },
-    });
+    // Update the payment intent and set its destination to the pilot's account
+    // TODO: figure out how to do this for real
+    // const payment_intent = await stripe.paymentIntents.update(payment_intent_token, {
+    //   // The destination parameter directs the transfer of funds from platform to pilot
+    //   transfer_data: {
+    //     // Send the amount for the pilot after collecting a 20% platform fee:
+    //     // the `amountForPilot` method simply computes `ride.amount * 0.8`
+    //     amount: ride.amountForPilot(),
+    //     // The destination of this charge is the pilot's Stripe account
+    //     destination: pilot.stripeAccountId,
+    //   },
+    // });
 
-    // Add the Stripe charge reference to the ride and save it
-    ride.stripeChargeId = charge.id;
+    // Add the Stripe payment_intent_token reference to the ride and save it
+    ride.stripeChargeId = payment_intent_token;
     ride.save();
 
     // Return the ride info
