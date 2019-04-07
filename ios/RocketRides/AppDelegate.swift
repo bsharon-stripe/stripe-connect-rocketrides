@@ -68,5 +68,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Main API client configuration
         MainAPIClient.shared.baseURLString = baseURLString
     }
+    
+    // This method handles opening native URLs (e.g., "your-app://")
+    func application(_ app: UIApplication, open url: URL, options: [UIApplicationOpenURLOptionsKey : Any] = [:]) -> Bool {
+        let stripeHandled = Stripe.handleURLCallback(with: url)
+        NSLog("openURL: %@ (stripe handled? %@)", url.absoluteString, stripeHandled ? "yes" : "no");
+        if (stripeHandled) {
+            return true
+        } else {
+            // This was not a stripe url – do whatever url handling your app
+            // normally does, if any.
+        }
+        return false
+    }
 
 }
