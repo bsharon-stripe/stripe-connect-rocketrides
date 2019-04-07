@@ -16,6 +16,7 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
 
     private let customerContext: STPCustomerContext
     private let paymentContext: STPPaymentContext
+    private var redirectContext: STPRedirectContext?
     private var paymentIntentClientSecret: String?
     private var customerId: String?
 
@@ -476,20 +477,33 @@ class RideRequestViewController: UIViewController, STPPaymentContextDelegate, Lo
                 NSLog("Confirmation Error")
                 completion(error)
             } else if let paymentIntent = paymentIntent {
-                if paymentIntent.status == .requiresSourceAction {
+                if paymentIntent.status == .requiresAction {
                     guard let redirectContext = (STPRedirectContext(paymentIntent: paymentIntent) { [weak self] (secret, error) in
                         guard let strongSelf = self else {
                             // View controller was deallocated
                             return
                         }
-
-                        strongSelf.confirmRide(source: source, completion: completion);
+                        // Need to check payment intent state here
+                        client.retrievePaymentIntent(withClientSecret: secret, completion: { (paymentIntent, error) in
+                            guard let paymentIntent = paymentIntent else {
+                                NSLog("Couldn't load updated PaymentIntent")
+                                completion(nil)
+                                return;
+                            }
+                            let status = paymentIntent.status
+                            if status == .succeeded {
+                                NSLog("Confirmation Success")
+                                strongSelf.confirmRide(source: source, completion: completion);
+                            }
+                        })
                     }) else {
                         // This PaymentIntent action is not yet supported by the SDK.
                         completion(nil)
                         return;
                     }
                     redirectContext.startRedirectFlow(from: self)
+                    // Capture a strong reference to the redirectContext to keep the safari view controller from immediately disappearing
+                    self.redirectContext = redirectContext
                 } else {
                     NSLog("Confirmation Success")
                     self.confirmRide(source: source, completion: completion);
